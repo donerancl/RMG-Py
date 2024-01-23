@@ -309,9 +309,9 @@ class GaussianLog(ESSAdapter):
         with open(self.path, 'r') as f:
             line = f.readline()
             while line != '':
-
                 if 'SCF Done:' in line:
-                    e_elect = float(line.split()[4]) * constants.E_h * constants.Na
+                    match = re.search(r"SCF Done:  E\(.+\) =  [\d\-\.]+")
+                    e_elect = line[match.start():match:end()].split()[-1]
                     elect_energy_source = 'SCF'
                 elif ' E2(' in line and ' E(' in line:
                     e_elect = float(line.split()[-1].replace('D', 'E')) * constants.E_h * constants.Na
