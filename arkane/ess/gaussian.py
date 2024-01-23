@@ -35,7 +35,7 @@ Used to parse Gaussian output files
 import logging
 import math
 import os.path
-
+import re
 import numpy as np
 
 import rmgpy.constants as constants
