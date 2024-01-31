@@ -376,9 +376,18 @@ class GaussianLog(ESSAdapter):
                             elect_energy_source = 'HF'
                     except ValueError:
                         pass
+<<<<<<< HEAD
                 elif 'Energy=' in line:
                     # for xtb
                     e_elect = float(line.split()[1]) * constants.E_h * constants.Na
+=======
+<<<<<<< HEAD
+=======
+                elif 'Energy=' in line:
+                    # for xtb
+                    e_elect = float(line.split()[1]) * constants.E_h * constants.Na
+>>>>>>> 9de7bbb55 (squashed)
+>>>>>>> e28081cdf (try to squash)
                 # Read the next line in the file
                 line = f.readline()
 
