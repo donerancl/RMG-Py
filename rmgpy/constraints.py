@@ -52,7 +52,7 @@ def pass_cutting_threshold(species):
         # expects a molecule here
         struct = species
 
-    min_cutting_size = species_constraints.get('speciesCuttingThreshold', 20)
+    min_cutting_size = species_constraints.get('speciesCuttingThreshold')
     if struct.get_element_count()['C'] >= min_cutting_size:
         return True
 
