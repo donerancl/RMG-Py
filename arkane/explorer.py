@@ -264,16 +264,6 @@ class ExplorerJob(object):
                 for r in rxn.reactants + rxn.products:
                     if forbidden_structures.is_molecule_forbidden(r.molecule[0]):
                         rm_rxns.append(rxn)
-                        
-                print("In ExplorerJob.execute\n",flush=True)
-                print(f"Num reactants {len(rxn.reactants)}, num products {len(rxn.products)}\n",flush=True)
-                if len(rxn.reactants) > 1 and len(rxn.products) > 1:
-                    num_unpaired_electrons_reactants = sum([r.multiplicity-1 for r in rxn.reactants])
-                    num_unpaired_electrons_products = sum([r.multiplicity-1 for r in rxn.products])
-                    print(f"Unpaired electrons {num_unpaired_electrons_reactants} => {num_unpaired_electrons_products}\n",flush=True)
-                    if num_unpaired_electrons_products!=num_unpaired_electrons_reactants:
-                        print("Removing reaction\n",flush=True)
-                        rm_rxns.append(rxn)
 
             for rxn in rm_rxns:
                 logging.info('Removing forbidden reaction: {0}'.format(rxn))
