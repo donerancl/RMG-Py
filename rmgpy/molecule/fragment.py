@@ -1061,10 +1061,11 @@ class Fragment(Molecule):
         """
         Several specified aliphatic patterns
         """
+        logging.info(f"FRAGMENT: Cutting fragment/molecule with SMILES {molecule} and size_threshod {size_threshold}")
         # if input is smiles string, output smiles
         if isinstance(molecule, str):
             molecule_smiles = molecule
-        # if input is fragment, output frafgment
+        # if input is fragment, output fragment
         elif isinstance(molecule, Fragment):
             mol = molecule.generate_resonance_structures()[0]
             molecule_smiles = mol.to_smiles()
@@ -1094,6 +1095,7 @@ class Fragment(Molecule):
             # start pattern matching
             atom_map = molecule_to_cut.GetSubstructMatches(emol)
             if atom_map:
+                logging.info(f"FRAGMENT: checking all possible cutting sites")
                 # go through all matches and see if it agree with size threshold or in ring
                 for matched_atom_map in atom_map:
                     if self.check_in_ring(molecule_to_cut, matched_atom_map):
@@ -1122,10 +1124,11 @@ class Fragment(Molecule):
                         >= size_threshold
                         for mol in mol_set
                     ):
+                        logging.info("FRAGMENT: Number of carbons is greater than the size_threshold")
                         if len(mol_set) == 2:
                             frag1 = Chem.MolToSmiles(mol_set[0])
                             frag2 = Chem.MolToSmiles(mol_set[1])
-
+                            logging.info(f"frag 1 smiles: {frag1}, frag 2 smiles: {frag2}")
                             frag1_R = frag1.count("Na")
                             frag1_L = frag1.count("K")
                             frag2_R = frag2.count("Na")
@@ -1151,8 +1154,10 @@ class Fragment(Molecule):
                                 frag2_smi = frag2.replace("*", "L")
 
                             frag_list = [frag1_smi, frag2_smi]
+                            logging.info(f"FRAGMENT: optimized cutting strategy gives frag 1 {frag1_smi} and frag 2 {frag2_smi}")
 
                         elif len(mol_set) > 2: # means it cut into 3 fragments
+                            logging.info(f"FRAGMENT: molecule will be cut into 3 fragments")
                             frag_list = []
                             for ind, rdmol in enumerate(mol_set):
                                 frag = Chem.MolToSmiles(rdmol)
@@ -1174,6 +1179,7 @@ class Fragment(Molecule):
                 break
 
         if frag_list == []:
+            logging.info("FRAGMENT: could not find a good place to cut this molecule")
             # this means no appropriate match for all patterns
             # cannot cut this molecule
             frag_list.append(molecule_smiles)
@@ -1199,7 +1205,6 @@ class Fragment(Molecule):
             for frag in frag_list:
                 n_frag_smiles = frag.replace("[Na]", "R")
                 new_frag_smiles = n_frag_smiles.replace("[K]", "L")
-
                 frag = Fragment().from_smiles_like_string(new_frag_smiles)
                 res_frag = frag.generate_resonance_structures()[0]
                 frag_list_new.append(res_frag)

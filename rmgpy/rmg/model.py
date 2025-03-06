@@ -308,13 +308,14 @@ class CoreEdgeReactionModel:
             # if the molecule type is Molecule, change type to Fragment before cutting
             if isinstance(molecule, Molecule):
                 molecule = Fragment().from_adjacency_list(molecule.to_adjacency_list())
-            # try to cut_molecule with size threshold set above
             mols = molecule.cut_molecule(cut_through=False, size_threshold=size_threshold)
-            # if cut above can't be made try with default size_threshold = 5
+            print(f'tried to cut molecule with st = {size_threshold}, {mols}')
             if len(mols) == 1:
                 mols = molecule.cut_molecule(cut_through=False)
-                # if cut above can't be made, don't cut
-                molecule = mols[0]
+                if len(mols) > 1:
+                    return [self.make_new_species(mol, check_decay=check_decay) for mol in mols]
+                else:
+                    molecule = mols[0]
             else:
                 return [self.make_new_species(mol, check_decay=check_decay) for mol in mols]
 

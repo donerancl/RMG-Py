@@ -597,6 +597,7 @@ class StatMechJob(object):
                     self.applyBondEnergyCorrections = False
 
             # Apply atom corrections
+            self.applyAtomEnergyCorrections = False
             if self.applyAtomEnergyCorrections:
                 atom_corrections = get_atom_correction(self.level_of_theory,
                                                        atoms, self.atomEnergies)
@@ -606,6 +607,7 @@ class StatMechJob(object):
                 logging.warning('Atom corrections are not being used. Do not trust energies and thermo.')
 
             # Apply bond corrections
+            self.applyBondEnergyCorrections = False
             if self.applyBondEnergyCorrections:
                 if not self.bonds and hasattr(self.species, 'molecule') and self.species.molecule:
                     self.bonds = self.species.molecule[0].enumerate_bonds()

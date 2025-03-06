@@ -180,7 +180,9 @@ class KineticsJob(object):
         logging.debug('Generating {0} kinetics model for {1}...'.format(kinetics_class, self.reaction))
         klist = np.zeros_like(self.Tlist.value_si)
         for i, t in enumerate(self.Tlist.value_si):
+            print(i,t)
             klist[i] = self.reaction.calculate_tst_rate_coefficient(t)
+            print(klist[i])
         order = len(self.reaction.reactants)
         klist *= 1e6 ** (order - 1)
         self.k_units = {1: 's^-1', 2: 'cm^3/(mol*s)', 3: 'cm^6/(mol^2*s)'}[order]
