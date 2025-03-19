@@ -4940,7 +4940,7 @@ def get_site_solute_data(rxn):
     else:
         return None
 
-allowed_spin_violation_families =['1,2-Birad_to_alkene','1,4_Cyclic_birad_scission','1,4_Linear_birad_scission']
+allowed_spin_violation_families =['1,4_Cyclic_birad_scission']
 allowed_spin = {
     "1+1": set([1]),
     "1+2": set([2]),
