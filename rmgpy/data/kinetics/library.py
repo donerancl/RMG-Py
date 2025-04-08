@@ -516,6 +516,8 @@ class KineticsLibrary(Database):
                 products = products[1:]
                 reversible = False
             if reversible != rxn.reversible:
+                print(rxn.label)
+                print(rxn)
                 raise DatabaseError('Reaction string reversibility ({0}) and entry attribute `reversible` ({1}) '
                                     'must agree if reaction is irreversible.'.format(rxn.reversible, reversible))
 

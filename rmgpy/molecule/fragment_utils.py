@@ -1,5 +1,6 @@
 from rmgpy.molecule.fragment import Fragment,CuttingLabel
 from rmgpy.molecule.molecule import Bond
+from rmgpy.reaction import Reaction
 from rdkit import Chem
 from numpy.random import randint
 from rmgpy.tools.canteramodel import Cantera
@@ -341,7 +342,56 @@ def check_if_radical_near_cutting_label(species_smiles):
                     return species_fragment, nearest_cutting_label
     else:
         return False
-
+    
+def check_if_cutting_label_near_cutting_label(species_smiles):
+    species_fragment = Fragment().from_smiles_like_string(species_smiles)
+    for i, atom in enumerate(species_fragment.atoms):
+        species_fragment.atoms[i].id = i
+        
+    for atom in species_fragment.atoms:
+        
+        if atom.symbol in ["R","L"]:
+            bonded_atoms = list(atom.bonds.keys())
+            bonded_atom_types = [type(x) for x in bonded_atoms]
+            if CuttingLabel in bonded_atom_types:
+                nearest_cutting_label = bonded_atoms[bonded_atom_types.index(CuttingLabel)]
+                return species_fragment, nearest_cutting_label
+            
+            for atom2 in bonded_atoms:
+                bonded_atoms_2 = list(atom2.bonds.keys())
+                bonded_atom_types_2 = [type(x) for x in bonded_atoms_2 if atom.id != x.id]
+                if CuttingLabel in bonded_atom_types_2:
+                    nearest_cutting_label = bonded_atoms_2[bonded_atom_types_2.index(CuttingLabel)]
+                    return species_fragment, nearest_cutting_label
+                else:
+                    for atom3 in bonded_atoms_2:
+                        bonded_atoms_3 = list(atom3.bonds.keys())
+                        bonded_atom_types_3 = [type(x) for x in bonded_atoms_3 if atom.id != x.id]
+                        if CuttingLabel in bonded_atom_types_3:
+                            nearest_cutting_label = bonded_atoms_3[bonded_atom_types_3.index(CuttingLabel)]
+                            return species_fragment, nearest_cutting_label
+                        else:
+                            return False
+        else:
+            return False
+                        
+def check_if_methyl_near_cutting_label(species_smiles):
+    species_fragment = Fragment().from_smiles_like_string(species_smiles)
+    for i, atom in enumerate(species_fragment.atoms):
+        species_fragment.atoms[i].id = i
+    for atom in species_fragment.atoms:
+        bonded_atoms = list(atom.bonds.keys())
+        bonded_hydrogens = [x for x in bonded_atoms if x.is_hydrogen()]
+        if len(bonded_hydrogens) == 3:
+            bonded_atom_types = [type(x) for x in bonded_atoms]
+            if CuttingLabel in bonded_atom_types:
+                nearest_cutting_label = bonded_atoms[bonded_atom_types.index(CuttingLabel)]
+                return species_fragment, nearest_cutting_label
+            else:
+                return False
+        else:
+            return False
+            
 def check_if_pibond_near_cutting_label(species_smiles):
     """
     returns True if there is a pi bond within 2 atoms of a cutting label
@@ -461,7 +511,7 @@ def cut_specific_bond(frag, cut_bond_idx):
     """
     returns a fragment list resulting from cutting the input fragment at a specified bond index
     """
-
+    
     rdfrag, atom_mapping = frag.to_rdkit_mol(remove_h=False, return_mapping=True,  save_order=True)
 
     atom_mapping_flipped = {v:k for k,v in atom_mapping.items()}
@@ -472,7 +522,6 @@ def cut_specific_bond(frag, cut_bond_idx):
     atom2 = atom_mapping[frag.atoms[cut_bond_idx[1]]]
 
     bond_to_cut = rdfrag.GetBondBetweenAtoms(atom1,atom2)
-
     frag_list = cut_and_place_cutting_labels(rdfrag, bond_to_cut)
     return frag_list
     
@@ -499,7 +548,6 @@ def cut_and_place_cutting_labels(rdfrag, bond_to_cut):
     newmol = Chem.RWMol(rdfrag)
     new_mol = Chem.FragmentOnBonds(newmol, [bond_to_cut.GetIdx()], dummyLabels=[(0,0)])
     mol_set = Chem.GetMolFrags(new_mol, asMols=True)
-    
     if len(mol_set) == 2:
         frag1 = Chem.MolToSmiles(mol_set[0])
         frag2 = Chem.MolToSmiles(mol_set[1])
@@ -541,11 +589,11 @@ def add_starting_fragment_cut_if_needed(species_fragment, nearest_cutting_label,
     merged_frag_smiles = merged_frag.smiles
     if merged_frag_smiles.count("C") + merged_frag_smiles.count("c") > species_cutting_threshold:
         cuttable_bonds = return_cuttable_bonds(merged_frag)
-        options = []
+        options=[]
         for cuttable_bond_idx_tuple in cuttable_bonds:
-            frag1smi, frag2smi = cut_specific_bond(merged_frag, cuttable_bond_idx_tuple)
+            fragments = cut_specific_bond(merged_frag, cuttable_bond_idx_tuple)
+            frag1smi, frag2smi = fragments
             options.append([frag1smi,frag2smi])
-        
         return options
     else:
         return [[merged_frag_smiles]]
@@ -598,7 +646,19 @@ def process_new_fragment(species_smiles, starting_fragment_smiles,species_cuttin
             options = add_starting_fragment_cut_if_needed(species_fragment, nearest_cutting_label, starting_fragment_smiles,species_cutting_threshold = species_cutting_threshold)
             return options
         else:
-            return species_smiles
+            cutting_label_result = check_if_cutting_label_near_cutting_label(species_smiles)
+            if cutting_label_result != False:
+                species_fragment, nearest_cutting_label = cutting_label_result
+                options = add_starting_fragment_cut_if_needed(species_fragment, nearest_cutting_label, starting_fragment_smiles,species_cutting_threshold = species_cutting_threshold)
+                return options
+            else:
+                methyl_result = check_if_methyl_near_cutting_label(species_smiles)
+                if methyl_result != False:
+                    species_fragment, nearest_cutting_label = methyl_result
+                    options = add_starting_fragment_cut_if_needed(species_fragment, nearest_cutting_label, starting_fragment_smiles,species_cutting_threshold = species_cutting_threshold)
+                    return options
+                else:
+                    return species_smiles
 
 def make_new_reaction_string(species_smiles, starting_fragment_smiles, frag_list):
     """
@@ -608,6 +668,16 @@ def make_new_reaction_string(species_smiles, starting_fragment_smiles, frag_list
     frag_list_str = " + ".join(frag_list)
     return f"{species_smiles} + {starting_fragment_smiles} => {frag_list_str}"
 
+
+def reaction_string_to_rmg_reaction(label, name_to_fragment_dictionary):
+    if '<=>' not in label:
+        label = label.replace('=>','<=>')
+    reactants = [x for x in label.split("<=>")[0].strip().split(" ") if x!="+"]
+    products = [x for x in label.split("<=>")[1].strip().split(" ") if x!="+"]
+    reactant_fragments = [name_to_fragment_dictionary[x] for x in reactants]
+    product_fragments = [name_to_fragment_dictionary[x] for x in products]
+    rxn = Reaction(label=label, reactants=reactant_fragments,products=product_fragments)
+    return rxn
 
 def generate_add_partial_reattachment_reactions(seed_dir, starting_fragments):
     """
@@ -635,7 +705,7 @@ def generate_add_partial_reattachment_reactions(seed_dir, starting_fragments):
         f = Fragment().from_adjacency_list(species_adjlist)
         fragment_to_name_dictionary[f] = name
         name = next(dlines_iter,"end").strip().strip('\n')
-
+    name_to_fragment_dictionary =  {v: k for k, v in fragment_to_name_dictionary.items()}
     rxn_strs = []
     for f in fragment_to_name_dictionary.keys():
         smiles = f.smiles
@@ -657,42 +727,71 @@ def generate_add_partial_reattachment_reactions(seed_dir, starting_fragments):
             continue
 
     seed_reaction_template = """
-    entry(
-        index = {},
-        label = \"{}\",
-        degeneracy = 1.0,
-        reversible = False,
-        kinetics = Arrhenius(A=(3.18795e+13,'m^3/(mol*s)'), n=-1.177, Ea=(0,'kJ/mol'), T0=(1,'K'), Tmin=(300,'K'), Tmax=(1500,'K')),
-        longDesc = 
-    \"\"\"
-    \"\"\",
-    )"""
-
+entry(
+    index = {},
+    label = \"{}\",
+    degeneracy = 1.0,
+    reversible = False,
+    kinetics = Arrhenius(A=(3.18795e+13,'m^3/(mol*s)'), n=-1.177, Ea=(0,'kJ/mol'), T0=(1,'K'), Tmin=(300,'K'), Tmax=(1500,'K')),
+    longDesc = 
+\"\"\"
+\"\"\",
+)"""
+    
     with open(seed_reactions_filename, "r") as f:
         lines = f.readlines()
-    for line in lines[::-1]:
-        if "index = " in line:
-            largest_idx = int(line.split()[-1].strip('\n').strip(','))
-            break
-
-    rxn_strs_in_seed_core = []
+    rxn_strs_in_seed_core = {}
+    rxns_in_seed_core = {}
     for line in lines:
-        if "label = " in line:
-            r = line.split("\"")[1]
-            if r not in rxn_strs_in_seed_core:
-                rxn_strs_in_seed_core.append(r)
+        if "index = " in line:
+            idx = int(line.split()[-1].strip('\n').strip(','))
 
+        if "label = " in line:
+            rxn_str = line.split("\"")[1]
+            rxn_strs_in_seed_core[idx] = rxn_str
+            rxn = reaction_string_to_rmg_reaction(rxn_str, name_to_fragment_dictionary)
+            rxns_in_seed_core[idx] = rxn
+    
     j = 0
     seed_reaction_entries = []
+    largest_idx = max(rxn_strs_in_seed_core.keys())
     for i, rxn_str in enumerate(rxn_strs):
-        if rxn_str not in rxn_strs_in_seed_core:
-            j+=1
-            entry = seed_reaction_template.format(largest_idx +j,rxn_str)
-            seed_reaction_entries.append(entry+"\n")
+        rxn = reaction_string_to_rmg_reaction(rxn_str, name_to_fragment_dictionary)
+        not_duplicate = True
+        if rxn_str not in rxn_strs_in_seed_core.values():
+            for idx,rxn_compare in rxns_in_seed_core.items():
+                match = False
+                if rxn.is_isomorphic(rxn_compare,strict=False,either_direction=False):
+                    for j,line in enumerate(lines):
+
+                        if "index = " in line:
+                            file_idx = int(line.split()[-1].strip('\n').strip(','))
+                            if file_idx == idx:
+                                match = True
+                                for k in range(j,len(lines)):
+                                    if "label = " in lines[k]:
+                                        if "<=>" in lines[k]:
+                                            lines[k] = lines[k].replace("<=>","=>")
+                                    if "kinetics = " in lines[k]:
+                                        lines[k] = "    kinetics = Arrhenius(A=(3.18795e+13,'m^3/(mol*s)'), n=-1.177, Ea=(0,'kJ/mol'), T0=(1,'K'), Tmin=(300,'K'), Tmax=(1500,'K')), reversible = False"
+                                        not_duplicate = False
+                                        break
+                        if match:
+                            break
+                if match:
+                    break
+            if not_duplicate:
+                j+=1
+                entry = seed_reaction_template.format(largest_idx +j,rxn_str)
+                seed_reaction_entries.append(entry+"\n")
+                continue
+            else:
+                print(f"{rxn_str} not in core")
 
     if seed_reaction_entries:
-        with open(seed_reactions_filename,'a') as f:
-            f.writelines(seed_reaction_entries)
+        newlines = lines + seed_reaction_entries
+        with open(seed_reactions_filename,'w') as f:
+            f.writelines(newlines)
         return f"Added {len(seed_reaction_entries)} partial reattachment reactions to {seed_reactions_filename}."
     else:
         return "No partial reattachment reactions to add"
