@@ -237,7 +237,8 @@ class Network(object):
             self.E0[n + self.n_isom] = self.reactants[n].E0
         for n in range(self.n_prod):
             self.E0[n + self.n_isom + self.n_reac] = self.products[n].E0
-
+            
+        logging.info('E0: {}'.format(self.E0))
         # Calculate densities of states
         self.active_j_rotor = active_j_rotor
         self.active_k_rotor = active_k_rotor
@@ -615,6 +616,10 @@ class Network(object):
         n_prod = len(self.products)
         n_grains = len(self.e_list)
         n_j = len(self.j_list)
+        logging.info('Mapping densities of states for {0} network...'.format(self.label))
+        logging.info('products: {}'.format([[spec.label for spec in products.species] for products in self.products]))
+        logging.info('reactants: {}'.format([[spec.label for spec in reactants.species] for reactants in self.reactants]))
+        logging.info('isomers: {}'.format([[spec.label for spec in isomer.species] for isomer in self.isomers]))
 
         self.dens_states = np.zeros((n_isom + n_reac + n_prod, n_grains, n_j))
         # Densities of states for isomers
@@ -750,6 +755,11 @@ class Network(object):
             kr0 = 0.0
             Qreac = 0.0
             Qprod = 0.0
+            if np.all(reac_dens_states == 0):
+                logging.warning('reac_dens_states is zero for path reaction %s', rxn)
+            if np.all(prod_dens_states == 0):
+                logging.warning('prod_dens_states is zero for path reaction %s', rxn)
+
             for s in range(n_j):
                 kf0 += np.sum(kf[:, s] * reac_dens_states[:, s] * (2 * j_list[s] + 1)
                                  * np.exp(-e_list / constants.R / temperature))
@@ -759,10 +769,18 @@ class Network(object):
                                    * np.exp(-e_list / constants.R / temperature))
                 Qprod += np.sum(prod_dens_states[:, s] * (2 * j_list[s] + 1)
                                    * np.exp(-e_list / constants.R / temperature))
+            if np.all(Qreac == 0):
+                logging.warning('Qreac is zero for path reaction %s', rxn)
             kr0 *= C0 ** (len(rxn.products) - len(rxn.reactants))
             Qprod *= C0 ** (len(rxn.products) - len(rxn.reactants))
+            if np.all(Qprod == 0):
+                logging.warning('Qprod is zero for path reaction %s', rxn)
             kf_actual = kf0 / Qreac if Qreac > 0 else 0
+            if np.all(kf_actual==0):
+                logging.warning('kf is zero for path reaction %s', rxn)
             kr_actual = kr0 / Qprod if Qprod > 0 else 0
+            if np.all(kr_actual==0):
+                logging.warning('kr is zero for path reaction %s', rxn)            
             Keq_actual = kf_actual / kr_actual if kr_actual > 0 else 0
 
             error = False
@@ -805,6 +823,10 @@ class Network(object):
                 else:
                     # Disagreement is too large, so raise exception
                     error = True
+            elif Keq_actual ==0:
+                logging.warning('Keq is zero for path reaction %s', rxn)
+            #     logging.warning('kf = %s', kf)
+            #     logging.warning('kr = %s', kr)  
 
             if rxn.reactants[0] in isomers and rxn.products[0] in isomers:
                 # Isomerization

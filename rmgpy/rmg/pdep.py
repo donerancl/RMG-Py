@@ -819,10 +819,12 @@ class PDepNetwork(rmgpy.pdep.network.Network):
         # Use the average E0 as the reference energy (`energy_correction`) for the network
         # The `energy_correction` will be added to the free energies and enthalpies for each
         # configuration in the network.
-        energy_correction = -np.array(E0).mean()
-        for spec in self.reactants + self.products + self.isomers:
-            spec.energy_correction = energy_correction
-        self.energy_correction = energy_correction
+
+        # stationary_point_E0s = [sum([spec.conformer.E0.value_si for spec in stationary_point.species]) for stationary_point  in self.reactants + self.isomers + self.products]
+        # energy_correction = -np.array(stationary_point_E0s).min()
+        # for spec in self.reactants + self.products + self.isomers:
+        #     spec.energy_correction = energy_correction
+        # self.energy_correction = energy_correction
 
         # Determine transition state energies on potential energy surface
         # In the absence of any better information, we simply set it to
@@ -850,10 +852,14 @@ class PDepNetwork(rmgpy.pdep.network.Network):
                 raise Exception('Path reaction "{0}" in PDepNetwork #{1:d} has invalid kinetics '
                                 'type "{2!s}".'.format(rxn, self.index, rxn.kinetics.__class__))
             rxn.fix_barrier_height(force_positive=True)
+            
             if rxn.network_kinetics is None:
-                E0 = sum([spec.conformer.E0.value_si for spec in rxn.reactants]) + rxn.kinetics.Ea.value_si + energy_correction
+
+                E0 = sum([spec.conformer.E0.value_si for spec in rxn.reactants]) + rxn.kinetics.Ea.value_si 
+                
             else:
-                E0 = sum([spec.conformer.E0.value_si for spec in rxn.reactants]) + rxn.network_kinetics.Ea.value_si + energy_correction
+
+                E0 = sum([spec.conformer.E0.value_si for spec in rxn.reactants]) + rxn.network_kinetics.Ea.value_si 
             rxn.transition_state = rmgpy.species.TransitionState(conformer=Conformer(E0=(E0 * 0.001, "kJ/mol")))
 
         # Set collision model

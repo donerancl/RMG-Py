@@ -366,22 +366,34 @@ cdef class Configuration(object):
         cdef list b_list
 
         import scipy.interpolate
+        logging.info("Creating spline interpolator for densities of states...")
         for r in range(self.e_list.shape[0]):
             if self.dens_states[r] > 0:
                 break
-        f = scipy.interpolate.InterpolatedUnivariateSpline(self.e_list[r:], np.log(self.dens_states[r:]))
+        logging.info(f"Using self.e_list starting from index {r}: E = {self.e_list[r]:.2f} J/mol")
+        logging.info(f"First few dens_states: {self.dens_states[r:r+5]}")
+        log_dens = np.log(self.dens_states[r:])
+        logging.info(f"First few log(dens_states): {log_dens[:5]}")
+        f = scipy.interpolate.InterpolatedUnivariateSpline(self.e_list[r:], log_dens)
 
         E0 = self.E0
         n_grains = e_list.shape[0]
         d_e = e_list[1] - e_list[0]
         d_e0 = self.e_list[1] - self.e_list[0]
+        logging.info(f"E0 = {E0:.2f} J/mol, e_list range = [{e_list[0]:.2f}, {e_list[-1]:.2f}], d_e = {d_e:.2f}, d_e0 = {d_e0:.2f}")
 
         if self.active_j_rotor:
-            dens_states = np.zeros((n_grains,1))
+            dens_states = np.zeros((n_grains, 1))
             for r0 in range(n_grains):
-                if e_list[r0] >= E0: break
+                if e_list[r0] >= E0:
+                    break
+            logging.info(f"Starting J-rotor active density mapping from index {r0}, e_list[r0] = {e_list[r0]:.2f} J/mol")
             for r in range(r0, n_grains):
-                dens_states[r, 0] = f(e_list[r] - E0)
+                e_rel = e_list[r] - E0
+                try:
+                    dens_states[r, 0] = f(e_rel)
+                except Exception as err:
+                    logging.warning(f"Interpolation failed at e = {e_rel:.2f} J/mol: {err}")
             dens_states[r0:, 0] = np.exp(dens_states[r0:, 0])
         else:
             assert j_list is not None
@@ -393,22 +405,30 @@ cdef class Configuration(object):
             for spec in self.species:
                 j_rotor, k_rotor = spec.conformer.get_symmetric_top_rotors()
                 b_list.append(float(j_rotor.rotationalConstant.value_si))
+            logging.info(f"Found {len(b_list)} B constants: {b_list}")
 
             for r0 in range(n_grains):
-                if e_list[r0] >= E0: break
+                if e_list[r0] >= E0:
+                    break
+            logging.info(f"Starting J-inactive density mapping from index {r0}, e_list[r0] = {e_list[r0]:.2f} J/mol")
 
             if len(b_list) == 1:
                 b1 = b_list[0] * 11.962  # cm^-1 to J/mol
+                logging.info(f"Using single B constant: b1 = {b1:.4f} J/mol")
                 for r in range(r0, n_grains):
                     for s in range(n_j):
                         j1 = j_list[s]
                         e = e_list[r] - E0 - b1 * j1 * (j1 + 1)
-                        if e < 0: break
-                        dens_states[r,s] = (2 * j1 + 1) * exp(f(e)) * d_j
-
+                        if e < 0:
+                            continue
+                        try:
+                            dens_states[r, s] = (2 * j1 + 1) * exp(f(e)) * d_j
+                        except Exception as err:
+                            logging.warning(f"Interpolation failed at e = {e:.2f} J/mol (j={j1}): {err}")
             elif len(b_list) == 2:
-                b1 = b_list[0] * 11.962  # cm^-1 to J/mol
+                b1 = b_list[0] * 11.962
                 b2 = b_list[1] * 11.962
+                logging.info(f"Using two B constants: b1 = {b1:.4f} J/mol, b2 = {b2:.4f} J/mol")
                 for r in range(r0, n_grains):
                     for s in range(n_j):
                         j = j_list[s]
@@ -417,7 +437,13 @@ cdef class Configuration(object):
                             j2 = j - j1
                             e = e_list[r] - E0 - b1 * j1 * (j1 + 1) - b2 * j2 * (j2 + 1)
                             if e > 0:
-                                dens_states[r, s] += (2 * j1 + 1) * (2 * j2 + 2) * exp(f(e)) * d_j * d_j
+                                try:
+                                    dens_states[r, s] += (2 * j1 + 1) * (2 * j2 + 2) * exp(f(e)) * d_j * d_j
+                                except Exception as err:
+                                    logging.warning(f"Interpolation failed at e = {e:.2f} J/mol (j1={j1}, j2={j2}): {err}")
+
+        if np.all(dens_states == 0):
+            logging.warning("Resulting density of states is all zeros!")
 
         return dens_states * d_e / d_e0
 
