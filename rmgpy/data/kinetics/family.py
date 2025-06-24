@@ -1678,7 +1678,7 @@ class KineticsFamily(Database):
 
         return False
 
-    def _create_reaction(self, reactants, products, is_forward):
+    def _create_reaction(self, reactants, products, is_forward, check_spin = True):
         """
         Create and return a new :class:`Reaction` object containing the
         provided `reactants` and `products` as lists of :class:`Molecule`
@@ -1776,6 +1776,7 @@ class KineticsFamily(Database):
             specified reactants and products within this family.
             Degenerate reactions are returned as separate reactions.
         """
+        check_spin = True
         reaction_list = []
 
         # Forward direction (the direction in which kinetics is defined)

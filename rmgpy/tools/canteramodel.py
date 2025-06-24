@@ -436,7 +436,14 @@ class Cantera(object):
     def simulate(self):
         """
         Run all the conditions as a cantera simulation.
-        Returns the data as a list of tuples containing: (time, [list of temperature, pressure, and species data]) 
+        Returns the data as a list of tuples containing:
+            (time,
+             [list of temperature, pressure, and species data],
+             reaction_sensitivity_data,
+             thermodynamic_sensitivity_data,
+             net_rates_of_progress_data,        # NEW: Added ROP data
+             forward_rates_of_progress_data,    # NEW: Added ROP data
+             reverse_rates_of_progress_data)    # NEW: Added ROP data
             for each reactor condition
         """
         # Get all the cantera names for the species
@@ -448,6 +455,7 @@ class Cantera(object):
 
         all_data = []
         for condition in self.conditions:
+
 
             # First translate the mol_frac from species objects to species names
             new_mol_frac = {}
@@ -513,6 +521,11 @@ class Cantera(object):
             kinetic_sensitivity_data = []
             thermo_sensitivity_data = []
 
+            # NEW: Initialize lists for ROP data
+            net_rop_raw_data = []
+            forward_rop_raw_data = []
+            reverse_rop_raw_data = []
+
             # Begin integration
             time = 0.0
             # Run the simulation over 100 time points
@@ -523,12 +536,17 @@ class Cantera(object):
                 times.append(cantera_simulation.time)
                 temperature.append(cantera_reactor.T)
                 pressure.append(cantera_reactor.thermo.P)
-                
+
                 if self.surface:
                     species_data.append(np.concatenate((cantera_reactor.thermo[species_names_list].X, rsurf.kinetics.coverages)))
                     N_gas = len(cantera_reactor.thermo[species_names_list].X)
                 else:
                     species_data.append(cantera_reactor.thermo[species_names_list].X)
+
+                # NEW: Capture Reaction Order of Progress (ROP) at each time step
+                net_rop_raw_data.append(cantera_reactor.kinetics.net_rates_of_progress)
+                forward_rop_raw_data.append(cantera_reactor.kinetics.forward_rates_of_progress)
+                reverse_rop_raw_data.append(cantera_reactor.kinetics.reverse_rates_of_progress)
 
                 if self.sensitive_species:
                     # Cantera returns mass-based sensitivities rather than molar concentration or mole fraction based sensitivities.
@@ -580,11 +598,15 @@ class Cantera(object):
                                         # massFracSensitivity for inerts are returned as 0.0 in Cantera, so we must not include them here
                                         sensitivity_array[num_ct_species * index + j] -= thermo_mass_frac_sa[i][j]
                         thermo_sensitivity_data.append(sensitivity_array)
-
             # Convert species_data and sensitivity data to numpy arrays
             species_data = np.array(species_data)
             kinetic_sensitivity_data = np.array(kinetic_sensitivity_data)
             thermo_sensitivity_data = np.array(thermo_sensitivity_data)
+
+            # NEW: Convert ROP raw data to numpy arrays
+            net_rop_data = np.array(net_rop_raw_data)
+            forward_rop_data = np.array(forward_rop_raw_data)
+            reverse_rop_data = np.array(reverse_rop_raw_data)
 
             # Resave data into generic data objects
             time = GenericData(label='Time',
@@ -601,7 +623,7 @@ class Cantera(object):
             condition_data.append(pressure)
 
             for index, species in enumerate(self.species_list):
-                # Create generic data object that saves the species object into the species object.  To allow easier manipulate later.
+                # Create generic data object that saves the species object into the species object. To allow easier manipulate later.
                 species_generic_data = GenericData(label=species_names_list[index],
                                                    species=species,
                                                    data=species_data[:, index],
@@ -644,7 +666,55 @@ class Cantera(object):
                             )
                         thermodynamic_sensitivity_data.append(thermo_sensitivity_generic_data)
 
-            all_data.append((time, condition_data, reaction_sensitivity_data, thermodynamic_sensitivity_data))
+            # NEW: Save ROP data as generic data objects for each reaction
+            net_rates_of_progress_data = []
+            forward_rates_of_progress_data = []
+            reverse_rates_of_progress_data = []
+
+            for rxn_index, ct_reaction in enumerate(self.model.reactions()):
+                # Determine units based on reaction type (you might need more sophisticated logic for surface reactions)
+                # For gas phase reactions, rates are in mol/m^3/s
+                rop_units = 'mol/m^3/s'
+                if self.surface and 'site' in str(ct_reaction): # A simple heuristic, may need refinement
+                    rop_units = 'mol/m^2/s'
+
+                net_rates_of_progress_data.append(
+                    GenericData(
+                        label=f'Net ROP: {ct_reaction.ID or rxn_index}',
+                        reaction=ct_reaction,
+                        data=net_rop_data[:, rxn_index],
+                        index=rxn_index,
+                        units=rop_units
+                    )
+                )
+                forward_rates_of_progress_data.append(
+                    GenericData(
+                        label=f'Forward ROP: {ct_reaction.ID or rxn_index}',
+                        reaction=ct_reaction,
+                        data=forward_rop_data[:, rxn_index],
+                        index=rxn_index,
+                        units=rop_units
+                    )
+                )
+                reverse_rates_of_progress_data.append(
+                    GenericData(
+                        label=f'Reverse ROP: {ct_reaction.ID or rxn_index}',
+                        reaction=ct_reaction,
+                        data=reverse_rop_data[:, rxn_index],
+                        index=rxn_index,
+                        units=rop_units
+                    )
+                )
+
+
+            # NEW: Update the tuple returned by simulate
+            all_data.append((time,
+                             condition_data,
+                             reaction_sensitivity_data,
+                             thermodynamic_sensitivity_data,
+                             net_rates_of_progress_data,
+                             forward_rates_of_progress_data,
+                             reverse_rates_of_progress_data))
 
         return all_data
 

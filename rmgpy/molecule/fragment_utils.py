@@ -117,87 +117,7 @@ def match_concentrations_with_same_sums(conc1, conc2, rtol=1e-6):
         match_conc = ((matched_label1, matched_label2), matched_value)
         matches_conc.append(match_conc)
     return matches_conc
-
-
-def match_concentrations_with_different_sums(conc1, conc2):
-    """
-    Given two lists with each item to be a tuple
-    (species label, concentration)
-    conc1 and conc2 with different total concentrations,
-    the method returns matched species labels and
-    concentrations.
-    Example:
-    conc1 = [('a', 1),
-                    ('b', 3),
-                    ('c', 1)]
-    conc2 = [('x', 2),
-                    ('y', 1),
-                    ('z', 10)]
-    return: [(('a','x', 'z', 'z'),1),
-                    (('b','x', 'z', 'z'),1),
-                    (('b','y', 'z', 'z'),1),
-                    (('b','z', 'z'),1),
-                    (('c','z', 'z'),1)]
-    """
-    labels1 = [tup[0] for tup in conc1]
-    labels2 = [tup[0] for tup in conc2]
-
-    seq1 = [tup[1] for tup in conc1]
-    seq2 = [tup[1] for tup in conc2]
-
-    matches_conc = []
-    pin1 = 0
-    pin2 = 0
-    val1 = seq1[pin1]
-    val2 = seq2[pin2]
-
-    while True:
-        if val1 > val2:
-            match = ((labels1[pin1], labels2[pin2]), val2)
-            matches_conc.append(match)
-            val1 = val1 - val2
-            pin2 += 1
-            if pin2 == len(seq2):
-                break
-            val2 = seq2[pin2]
-        elif val1 < val2:
-            match = ((labels1[pin1], labels2[pin2]), val1)
-            matches_conc.append(match)
-            val2 = val2 - val1
-            pin1 += 1
-            if pin1 == len(seq1):
-                break
-            val1 = seq1[pin1]
-        else:
-            match = ((labels1[pin1], labels2[pin2]), val1)
-            matches_conc.append(match)
-            pin1 += 1
-            pin2 += 1
-            if pin1 == len(seq1):
-                break
-            val1 = seq1[pin1]
-            if pin2 == len(seq2):
-                break
-            val2 = seq2[pin2]
-
-    # if pin2 first reaches the end
-    # append all the remaining seq1 to matches_conc
-    if pin2 == len(seq2) and pin1 < len(seq1):
-        remain_conc1 = [(labels1[pin1], val1)] + conc1[(pin1 + 1):]
-        matches_conc.extend(remain_conc1)
-
-    # if pin1 first reaches the end
-    # let matches_conc match with remaining seq2
-    elif pin1 == len(seq1) and pin2 < len(seq2):
-        remain_conc2 = [(labels2[pin2], val2)] + conc2[(pin2 + 1):]
-        matches_conc = match_concentrations_with_different_sums(
-            matches_conc, remain_conc2
-        )
-
-    # if pin1 and pin2 reach the ends at same time
-    # matches_conc is ready to return
-    return matches_conc
-
+nch
 
 def shuffle(conc, seed=None):
     """
@@ -592,7 +512,11 @@ def add_starting_fragment_cut_if_needed(species_fragment, nearest_cutting_label,
         options=[]
         for cuttable_bond_idx_tuple in cuttable_bonds:
             fragments = cut_specific_bond(merged_frag, cuttable_bond_idx_tuple)
-            frag1smi, frag2smi = fragments
+            try:
+                frag1smi, frag2smi = fragments
+            except:
+                print(fragments)
+                raise
             options.append([frag1smi,frag2smi])
         return options
     else:
